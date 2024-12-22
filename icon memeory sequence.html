@@ -1,0 +1,357 @@
+<html><head><base href="." /><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Icon Memory Game</title>
+<style>
+    body {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+        margin: 0;
+        font-family: Arial, sans-serif;
+        background: #1a1a1a;
+        color: white;
+    }
+
+    #game-container {
+        text-align: center;
+    }
+
+    #sequence {
+        font-size: 120px; 
+        min-height: 130px; 
+        margin: 20px;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.5),
+                     -2px -2px 4px rgba(255,255,255,0.2);
+        height: 130px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .icon-btn {
+        font-size: 60px; 
+        margin: 15px;
+        padding: 35px; 
+        border: none;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        width: 140px; 
+        height: 140px; 
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        background: transparent;
+        text-shadow: 3px 3px 6px rgba(0,0,0,0.5),
+                     -3px -3px 6px rgba(255,255,255,0.2);
+        transform-style: preserve-3d;
+        perspective: 1000px;
+        -webkit-tap-highlight-color: transparent;
+        touch-action: manipulation;
+    }
+
+    .icon-btn:hover, .icon-btn:active {
+        transform: scale(1.1) translateZ(20px);
+        text-shadow: 5px 5px 10px rgba(0,0,0,0.7),
+                     -5px -5px 10px rgba(255,255,255,0.3);
+    }
+
+    #status {
+        font-size: 24px;
+        margin: 20px;
+        min-height: 30px;
+        height: 30px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    #score {
+        font-size: 20px;
+        margin: 10px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .icon-btn[data-icon="★"], #sequence[data-current="★"] {
+        color: gold;
+    }
+
+    .icon-btn[data-icon="⌂"], #sequence[data-current="⌂"] {
+        color: #1e90ff;  
+    }
+
+    .icon-btn[data-icon="♫"], #sequence[data-current="♫"] {
+        color: #ffffff;
+    }
+
+    .advanced .icon-btn[data-icon="★"], .advanced #sequence[data-current="★"] {
+        color: #8B4513;
+    }
+
+    .advanced .icon-btn[data-icon="⌂"], .advanced #sequence[data-current="⌂"] {
+        color: #32CD32;
+    }
+
+    .advanced .icon-btn[data-icon="♫"], .advanced #sequence[data-current="♫"] {
+        color: #0000FF;
+    }
+
+    @media (max-width: 600px) {
+        .icon-btn {
+            font-size: 40px;
+            width: 100px;
+            height: 100px;
+            padding: 25px;
+            margin: 10px;
+        }
+
+        #sequence {
+            font-size: 80px;
+            min-height: 100px;
+            height: 100px;
+        }
+
+        h1 {
+            font-size: 24px;
+        }
+
+        #status {
+            font-size: 18px;
+            padding: 0 10px;
+            text-align: center;
+        }
+    }
+</style>
+</head>
+<body>
+    <div id="game-container">
+        <h1>Icon Memory Game</h1>
+        <div id="sequence"></div>
+        <div id="status">Watch the sequence...</div>
+        <div id="score">Score: 0</div>
+        <div id="buttons">
+            <button class="icon-btn" data-icon="★">★</button>
+            <button class="icon-btn" data-icon="⌂">⌂</button>
+            <button class="icon-btn" data-icon="♫">♫</button>
+        </div>
+    </div>
+
+<script>
+let sequence = [];
+let playerSequence = [];
+let score = 0;
+let isPlaying = false;
+let canClick = false;
+let lastIcon = '';
+let usedStartIcons = new Set();
+let isAdvancedMode = false;
+let usedSequences = new Set();
+
+// Create AudioContext for sound effects
+const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+// Sound effect functions for each icon
+function playStarSound() {
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(523.25, audioContext.currentTime); // C5
+    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+    oscillator.start();
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+    oscillator.stop(audioContext.currentTime + 0.3);
+}
+
+function playHouseSound() {
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    oscillator.type = 'triangle';
+    oscillator.frequency.setValueAtTime(392.00, audioContext.currentTime); // G4
+    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+    oscillator.start();
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+    oscillator.stop(audioContext.currentTime + 0.3);
+}
+
+function playNoteSound() {
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    oscillator.type = 'square';
+    oscillator.frequency.setValueAtTime(440.00, audioContext.currentTime); // A4
+    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+    oscillator.start();
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+    oscillator.stop(audioContext.currentTime + 0.3);
+}
+
+function playSound(icon) {
+    switch(icon) {
+        case '★':
+            playStarSound();
+            break;
+        case '⌂':
+            playHouseSound();
+            break;
+        case '♫':
+            playNoteSound();
+            break;
+    }
+}
+
+const buttons = document.querySelectorAll('.icon-btn');
+const sequenceDisplay = document.getElementById('sequence');
+const statusDisplay = document.getElementById('status');
+const scoreDisplay = document.getElementById('score');
+const gameContainer = document.getElementById('game-container');
+
+function startGame() {
+    sequence = [];
+    playerSequence = [];
+    score = 0;
+    lastIcon = '';
+    usedStartIcons = new Set();
+    usedSequences = new Set();
+    isAdvancedMode = false;
+    gameContainer.classList.remove('advanced');
+    scoreDisplay.textContent = `Score: ${score}`;
+    addToSequence(true);
+}
+
+function generateUniqueSequence(currentLength) {
+    const icons = ['★', '⌂', '♫'];
+    let newSequence;
+    let attempts = 0;
+    const maxAttempts = 1000;
+
+    do {
+        newSequence = [];
+        lastIcon = '';
+        
+        let availableStartIcons = icons.filter(icon => !usedStartIcons.has(icon));
+        if (availableStartIcons.length === 0) {
+            usedStartIcons.clear();
+            availableStartIcons = icons;
+        }
+        let firstIcon = availableStartIcons[Math.floor(Math.random() * availableStartIcons.length)];
+        newSequence.push(firstIcon);
+        lastIcon = firstIcon;
+        
+        for (let i = 1; i < currentLength; i++) {
+            let availableIcons = icons.filter(icon => icon !== lastIcon);
+            let nextIcon = availableIcons[Math.floor(Math.random() * availableIcons.length)];
+            newSequence.push(nextIcon);
+            lastIcon = nextIcon;
+        }
+        
+        attempts++;
+        if (attempts >= maxAttempts) {
+            usedSequences.clear();
+            attempts = 0;
+        }
+    } while (usedSequences.has(newSequence.join('')));
+
+    usedSequences.add(newSequence.join(''));
+    usedStartIcons.add(newSequence[0]);
+    return newSequence;
+}
+
+function addToSequence(isFirstIcon = false) {
+    sequence = generateUniqueSequence(isFirstIcon ? 1 : sequence.length + 1);
+    playerSequence = [];
+    showSequence();
+}
+
+async function showSequence() {
+    canClick = false;
+    statusDisplay.textContent = 'Watch the sequence...';
+    sequenceDisplay.textContent = '';
+    
+    for (let i = 0; i < sequence.length; i++) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+        sequenceDisplay.textContent = sequence[i];
+        sequenceDisplay.dataset.current = sequence[i];
+        playSound(sequence[i]);
+        await new Promise(resolve => setTimeout(resolve, 800));
+        sequenceDisplay.textContent = '';
+        sequenceDisplay.dataset.current = '';
+    }
+    
+    sequenceDisplay.textContent = '';
+    statusDisplay.textContent = 'Your turn! Repeat the sequence';
+    canClick = true;
+}
+
+function handleClick(icon) {
+    if (!canClick) return;
+
+    playerSequence.push(icon);
+    playSound(icon);
+    const currentIndex = playerSequence.length - 1;
+
+    if (playerSequence[currentIndex] !== sequence[currentIndex]) {
+        gameOver();
+        return;
+    }
+
+    if (playerSequence.length === sequence.length) {
+        score++;
+        scoreDisplay.textContent = `Score: ${score}`;
+        
+        if (score === 5) {
+            isAdvancedMode = true;
+            gameContainer.classList.add('advanced');
+        }
+        
+        setTimeout(() => {
+            addToSequence(false);
+        }, 1000);
+    }
+}
+
+function gameOver() {
+    statusDisplay.textContent = `Game Over! Final Score: ${score}. Click any button to restart.`;
+    canClick = false;
+    setTimeout(() => {
+        startGame();
+    }, 2000);
+}
+
+// Handle both click and touch events
+buttons.forEach(button => {
+    const handleInteraction = (e) => {
+        e.preventDefault(); // Prevent default touch behavior
+        if (!canClick) return;
+        const icon = button.dataset.icon;
+        sequenceDisplay.textContent = icon;
+        sequenceDisplay.dataset.current = icon;
+        setTimeout(() => {
+            sequenceDisplay.textContent = '';
+            sequenceDisplay.dataset.current = '';
+        }, 300);
+        handleClick(icon);
+    };
+
+    button.addEventListener('click', handleInteraction);
+    button.addEventListener('touchstart', handleInteraction);
+});
+
+// Prevent zoom on double tap
+document.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    e.target.click();
+}, false);
+
+startGame();
+</script>
+</body></html>
